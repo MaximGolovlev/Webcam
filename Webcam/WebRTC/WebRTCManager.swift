@@ -33,25 +33,31 @@ class WebRTCManager: NSObject, ObservableObject {
     
     func setupLocalStream() {
         let constraints = RTCMediaConstraints(mandatoryConstraints: nil, optionalConstraints: nil)
-        let configuration = RTCConfiguration()
-        configuration.iceServers = [RTCIceServer(urlStrings: ["stun:stun.l.google.com:19302"])]
+        let config = RTCConfiguration()
+        config.iceServers = [RTCIceServer(urlStrings: ["stun:stun.l.google.com:19302"])]
+        config.sdpSemantics = .unifiedPlan
         
-        peerConnection = factory.peerConnection(with: configuration, constraints: constraints, delegate: self)
+        peerConnection = factory.peerConnection(with: config, constraints: constraints, delegate: self)
         
         // Создаем локальный поток
         let stream = factory.mediaStream(withStreamId: "localStream")
         
-        // Добавляем видео трек
+        // Создаем видео трек
         let videoSource = factory.videoSource()
         videoCapturer = RTCCameraVideoCapturer(delegate: videoSource)
-        localVideoTrack = factory.videoTrack(with: videoSource, trackId: "video0")
-        stream.addVideoTrack(localVideoTrack!)
+        let videoTrack = factory.videoTrack(with: videoSource, trackId: "video0")
+        stream.addVideoTrack(videoTrack)
         
-        // Добавляем аудио трек
+        // Создаем аудио трек
         let audioTrack = factory.audioTrack(withTrackId: "audio0")
         stream.addAudioTrack(audioTrack)
         
-        peerConnection?.add(stream)
+        // Добавляем треки в peerConnection
+        peerConnection?.add(videoTrack, streamIds: [stream.streamId])
+        peerConnection?.add(audioTrack, streamIds: [stream.streamId])
+        
+        // Сохраняем ссылки на треки
+        localVideoTrack = videoTrack
         
         // Начинаем захват видео с камеры
         startCapture()
@@ -119,7 +125,7 @@ class WebRTCManager: NSObject, ObservableObject {
     }
     
     func addIceCandidate(_ candidate: RTCIceCandidate) {
-        peerConnection?.add(candidate)
+        peerConnection?.add(candidate, completionHandler: { _ in })
     }
     
     func hangUp() {
